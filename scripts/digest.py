@@ -245,7 +245,7 @@ def analyze_gemini(title: str, desc: str, channel: str, video_url: str = "") -> 
         "generationConfig": {"maxOutputTokens": 4096},
     }
     for attempt in range(3):
-        resp = requests.post(url, json=payload, timeout=120)
+        resp = requests.post(url, json=payload, timeout=300)
         if resp.status_code == 429:
             wait = 15 * (attempt + 1)
             log.warning(f"Gemini 速率限制，等待 {wait} 秒後重試...")
