@@ -38,10 +38,6 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ── 頻道清單（用 YouTube URL 格式）──────────────────────────────────────────
-# 支援以下格式：
-#   https://www.youtube.com/@頻道名稱
-#   https://www.youtube.com/channel/UCxxxxxxxxx
-#   https://www.youtube.com/c/頻道名稱
 CHANNELS = [
     {"name": "向陽說", "url": "https://www.youtube.com/channel/UCsvKtMVSJfdFBc1BtsayIJw"},
 ]
@@ -55,15 +51,12 @@ HEADERS = ["頻道", "標題", "發布日期", "影片連結", "一句摘要", "
 
 def resolve_channel_id(url: str) -> str | None:
     """從各種 YouTube URL 格式解析出 Channel ID (UCxxxxxxxx)。"""
-    # 格式 1：/channel/UCxxxxxx → 直接取
     m = re.search(r"/channel/(UC[\w-]{22})", url)
     if m:
         return m.group(1)
 
-    # 格式 2：/@handle 或 /c/name → 用 YouTube API 解析
     yt_key = os.environ.get("YOUTUBE_API_KEY", "")
     if yt_key:
-        # 從 URL 取出 handle
         handle_match = re.search(r"/@([^/?]+)", url)
         if handle_match:
             handle = handle_match.group(1)
@@ -80,7 +73,6 @@ def resolve_channel_id(url: str) -> str | None:
             except requests.RequestException as e:
                 log.warning(f"YouTube API 解析 handle 失敗: {e}")
 
-    # 備用：抓頁面原始碼找 channelId
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -113,7 +105,6 @@ def fetch_channel_videos(channel_id: str, days: int = 1) -> list[dict]:
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     published_after = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Step 1: 搜尋最近影片
     search_url = (
         f"https://www.googleapis.com/youtube/v3/search"
         f"?part=snippet&channelId={channel_id}&type=video"
@@ -132,7 +123,6 @@ def fetch_channel_videos(channel_id: str, days: int = 1) -> list[dict]:
     if not items:
         return []
 
-    # Step 2: 取得影片詳細資訊（description）
     video_ids = [item["id"]["videoId"] for item in items]
     videos_url = (
         f"https://www.googleapis.com/youtube/v3/videos"
@@ -156,7 +146,7 @@ def fetch_channel_videos(channel_id: str, days: int = 1) -> list[dict]:
         except ValueError:
             published = datetime.now(timezone.utc)
 
-        desc = snippet.get("description", "")[:1000]
+        desc = snippet.get("description", "")
         videos.append({
             "video_id":    vid,
             "title":       snippet.get("title", ""),
@@ -182,14 +172,16 @@ PROMPT_TEMPLATE = """\
 一句摘要：（用一句話說明這支影片的核心內容，不超過 50 字）
 
 重點條列：
-• （重點一）
-• （重點二）
-• （重點三）
-• （如有更多重點可繼續列出，最多 5 點）"""
+• （重點一：具體說明影片討論的核心議題或論點）
+• （重點二：提及的關鍵數據、人物或事件）
+• （重點三：影片給出的建議或結論）
+• （重點四：如有其他重要觀點）
+• （重點五：如有其他重要觀點）
+
+注意：請盡量從描述中提取具體資訊，避免空泛的重複標題內容。每個重點都要有實質內容。"""
 
 def _parse_ai_output(raw: str) -> dict:
     """解析 AI 回傳的固定格式，支援各種 AI 的格式差異"""
-    # 清除 markdown 粗體
     clean = raw.replace("**", "")
     summary, bullets = "", ""
     if "一句摘要" in clean:
@@ -199,12 +191,10 @@ def _parse_ai_output(raw: str) -> dict:
         for line in lines:
             t = line.strip()
             if "一句摘要" in t:
-                # 支援「一句摘要：」「一句摘要:」等
                 summary = re.sub(r"^.*?一句摘要[：:]?\s*", "", t).strip()
             elif "重點條列" in t:
                 in_bullets = True
             elif in_bullets and (t.startswith("•") or t.startswith("-") or t.startswith("*") or re.match(r"^\d+[.、]", t)):
-                # 統一轉成 • 格式
                 cleaned = re.sub(r"^[-*•]\s*", "", t)
                 cleaned = re.sub(r"^\d+[.、]\s*", "", cleaned)
                 bullet_lines.append(f"• {cleaned}")
@@ -218,7 +208,7 @@ def analyze_claude(title: str, desc: str, channel: str) -> dict:
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     msg = client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=600,
+        max_tokens=2048,
         messages=[{"role": "user", "content": PROMPT_TEMPLATE.format(
             channel=channel, title=title, desc=desc or "（無描述）"
         )}],
@@ -237,9 +227,8 @@ def analyze_gemini(title: str, desc: str, channel: str) -> dict:
         )}]}],
         "generationConfig": {"maxOutputTokens": 2048},
     }
-    # Gemini 免費額度有速率限制，429 時自動重試
     for attempt in range(3):
-        resp = requests.post(url, json=payload, timeout=30)
+        resp = requests.post(url, json=payload, timeout=60)
         if resp.status_code == 429:
             wait = 15 * (attempt + 1)
             log.warning(f"Gemini 速率限制，等待 {wait} 秒後重試...")
@@ -247,7 +236,6 @@ def analyze_gemini(title: str, desc: str, channel: str) -> dict:
             continue
         resp.raise_for_status()
         raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        log.info(f"   [DEBUG] Gemini 原始回傳:\n{raw.strip()}")
         return _parse_ai_output(raw.strip())
     resp.raise_for_status()
     return {"summary": "重試失敗", "bullets": ""}
@@ -257,7 +245,7 @@ def analyze_openai(title: str, desc: str, channel: str) -> dict:
     client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     resp = client.chat.completions.create(
         model="gpt-4o-mini",
-        max_tokens=600,
+        max_tokens=2048,
         messages=[{"role": "user", "content": PROMPT_TEMPLATE.format(
             channel=channel, title=title, desc=desc or "（無描述）"
         )}],
@@ -278,8 +266,8 @@ def analyze(title: str, desc: str, channel: str) -> tuple[dict, str]:
         provider = "claude"
     try:
         result = ANALYZERS[provider](title, desc, channel)
-        log.info(f"   [DEBUG] 摘要: {result['summary'][:80]}")
-        log.info(f"   [DEBUG] 條列: {result['bullets'][:120]}")
+        log.info(f"   摘要: {result['summary'][:80]}")
+        log.info(f"   條列: {len(result['bullets'])} 字")
         return result, provider
     except Exception as e:
         log.error(f"[{provider}] 分析失敗: {e}")
@@ -333,7 +321,6 @@ def main():
     for ch in CHANNELS:
         log.info(f"── {ch['name']}  {ch['url']}")
 
-        # 解析 Channel ID
         channel_id = resolve_channel_id(ch["url"])
         if not channel_id:
             log.warning(f"   無法取得 Channel ID，跳過")
@@ -350,7 +337,7 @@ def main():
 
             log.info(f"   分析：{v['title'][:50]}")
             if new_rows:
-                time.sleep(5)  # 每支影片間隔 5 秒，避免速率限制
+                time.sleep(5)
             result, used_provider = analyze(v["title"], v["description"], ch["name"])
 
             new_rows.append([
