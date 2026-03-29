@@ -51,6 +51,9 @@ jobs:
           GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY:     ${{ secrets.OPENAI_API_KEY }}
 
+          # YouTube Data API
+          YOUTUBE_API_KEY:    ${{ secrets.YOUTUBE_API_KEY }}
+
           # Google Sheets
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           SPREADSHEET_ID:     ${{ secrets.SPREADSHEET_ID }}

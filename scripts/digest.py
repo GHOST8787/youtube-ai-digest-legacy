@@ -3,12 +3,14 @@ YouTube AI Digest v2
 --------------------
 支援 Claude / Gemini / OpenAI 三個 AI，可透過環境變數切換。
 頻道用 YouTube URL 格式輸入，自動解析 Channel ID。
+使用 YouTube Data API v3 抓取影片。
 
 環境變數（GitHub Secrets）:
   AI_PROVIDER         - 選擇 AI：claude / gemini / openai（預設 claude）
   ANTHROPIC_API_KEY   - Claude API key（AI_PROVIDER=claude 時需要）
   GEMINI_API_KEY      - Gemini API key（AI_PROVIDER=gemini 時需要）
   OPENAI_API_KEY      - OpenAI API key（AI_PROVIDER=openai 時需要）
+  YOUTUBE_API_KEY     - YouTube Data API v3 key（必填）
   GOOGLE_CREDENTIALS  - Google Service Account JSON（base64 編碼）
   SPREADSHEET_ID      - Google Sheet 的 ID
 """
@@ -19,7 +21,6 @@ import re
 import json
 import base64
 import logging
-import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 
 import requests
@@ -41,11 +42,7 @@ log = logging.getLogger(__name__)
 #   https://www.youtube.com/channel/UCxxxxxxxxx
 #   https://www.youtube.com/c/頻道名稱
 CHANNELS = [
-    {"name": "頻道A", "url": "https://www.youtube.com/@%E5%90%91%E9%99%BD%E8%AA%AA"},
-    {"name": "頻道B", "url": "https://www.youtube.com/@channelB"},
-    {"name": "頻道C", "url": "https://www.youtube.com/channel/UCxxxxxxxxxxxxxxxxxx"},
-    {"name": "頻道D", "url": "https://www.youtube.com/@channelD"},
-    {"name": "頻道E", "url": "https://www.youtube.com/@channelE"},
+    {"name": "向陽說", "url": "https://www.youtube.com/channel/UCsvKtMVSJfdFBc1BtsayIJw"},
 ]
 
 FETCH_DAYS            = int(os.environ.get("FETCH_DAYS", "1"))
@@ -56,16 +53,33 @@ HEADERS = ["頻道", "標題", "發布日期", "影片連結", "一句摘要", "
 # ── Channel ID 解析 ────────────────────────────────────────────────────────────
 
 def resolve_channel_id(url: str) -> str | None:
-    """
-    從各種 YouTube URL 格式解析出 Channel ID (UCxxxxxxxx)。
-    /channel/UC... 直接取；@handle 或 /c/ 需要抓頁面解析。
-    """
+    """從各種 YouTube URL 格式解析出 Channel ID (UCxxxxxxxx)。"""
     # 格式 1：/channel/UCxxxxxx → 直接取
     m = re.search(r"/channel/(UC[\w-]{22})", url)
     if m:
         return m.group(1)
 
-    # 格式 2：/@handle 或 /c/name → 抓頁面原始碼找 channelId
+    # 格式 2：/@handle 或 /c/name → 用 YouTube API 解析
+    yt_key = os.environ.get("YOUTUBE_API_KEY", "")
+    if yt_key:
+        # 從 URL 取出 handle
+        handle_match = re.search(r"/@([^/?]+)", url)
+        if handle_match:
+            handle = handle_match.group(1)
+            api_url = (
+                f"https://www.googleapis.com/youtube/v3/channels"
+                f"?part=id&forHandle={handle}&key={yt_key}"
+            )
+            try:
+                resp = requests.get(api_url, timeout=15)
+                resp.raise_for_status()
+                items = resp.json().get("items", [])
+                if items:
+                    return items[0]["id"]
+            except requests.RequestException as e:
+                log.warning(f"YouTube API 解析 handle 失敗: {e}")
+
+    # 備用：抓頁面原始碼找 channelId
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -79,7 +93,6 @@ def resolve_channel_id(url: str) -> str | None:
         m = re.search(r'"channelId":"(UC[\w-]{22})"', resp.text)
         if m:
             return m.group(1)
-        # 備用：找 externalId
         m = re.search(r'"externalId":"(UC[\w-]{22})"', resp.text)
         if m:
             return m.group(1)
@@ -87,49 +100,69 @@ def resolve_channel_id(url: str) -> str | None:
         log.warning(f"無法解析 URL {url}: {e}")
     return None
 
-# ── YouTube RSS 抓取 ───────────────────────────────────────────────────────────
+# ── YouTube Data API v3 抓取影片 ──────────────────────────────────────────────
 
 def fetch_channel_videos(channel_id: str, days: int = 1) -> list[dict]:
-    rss_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-    try:
-        resp = requests.get(rss_url, timeout=15)
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        log.warning(f"RSS 抓取失敗 {channel_id}: {e}")
+    """用 YouTube Data API v3 的 search endpoint 抓取頻道最新影片。"""
+    yt_key = os.environ.get("YOUTUBE_API_KEY", "")
+    if not yt_key:
+        log.error("YOUTUBE_API_KEY 未設定")
         return []
 
-    ns = {
-        "atom":  "http://www.w3.org/2005/Atom",
-        "yt":    "http://www.youtube.com/xml/schemas/2015",
-        "media": "http://search.yahoo.com/mrss/",
-    }
-    root   = ET.fromstring(resp.text)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    videos = []
+    published_after = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    for entry in root.findall("atom:entry", ns):
-        published_str = entry.findtext("atom:published", "", ns)
+    # Step 1: 搜尋最近影片
+    search_url = (
+        f"https://www.googleapis.com/youtube/v3/search"
+        f"?part=snippet&channelId={channel_id}&type=video"
+        f"&order=date&maxResults={MAX_VIDEOS_PER_CHANNEL}"
+        f"&publishedAfter={published_after}&key={yt_key}"
+    )
+    try:
+        resp = requests.get(search_url, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as e:
+        log.warning(f"YouTube API 搜尋失敗 {channel_id}: {e}")
+        return []
+
+    items = data.get("items", [])
+    if not items:
+        return []
+
+    # Step 2: 取得影片詳細資訊（description）
+    video_ids = [item["id"]["videoId"] for item in items]
+    videos_url = (
+        f"https://www.googleapis.com/youtube/v3/videos"
+        f"?part=snippet&id={','.join(video_ids)}&key={yt_key}"
+    )
+    try:
+        resp = requests.get(videos_url, timeout=15)
+        resp.raise_for_status()
+        details = {v["id"]: v["snippet"] for v in resp.json().get("items", [])}
+    except requests.RequestException as e:
+        log.warning(f"YouTube API 影片詳情失敗: {e}")
+        details = {}
+
+    videos = []
+    for item in items:
+        vid = item["id"]["videoId"]
+        snippet = details.get(vid, item.get("snippet", {}))
+        published_str = snippet.get("publishedAt", "")
         try:
             published = datetime.fromisoformat(published_str.replace("Z", "+00:00"))
         except ValueError:
-            continue
-        if published < cutoff:
-            continue
+            published = datetime.now(timezone.utc)
 
-        video_id = entry.findtext("yt:videoId", "", ns)
-        title    = entry.findtext("atom:title", "", ns)
-        desc_el  = entry.find(".//media:description", ns)
-        desc     = desc_el.text[:1000] if desc_el is not None and desc_el.text else ""
-
+        desc = snippet.get("description", "")[:1000]
         videos.append({
-            "video_id":    video_id,
-            "title":       title,
-            "url":         f"https://www.youtube.com/watch?v={video_id}",
+            "video_id":    vid,
+            "title":       snippet.get("title", ""),
+            "url":         f"https://www.youtube.com/watch?v={vid}",
             "published":   published.strftime("%Y-%m-%d"),
             "description": desc,
         })
-        if len(videos) >= MAX_VIDEOS_PER_CHANNEL:
-            break
 
     return videos
 
