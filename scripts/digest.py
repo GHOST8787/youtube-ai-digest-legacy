@@ -188,23 +188,29 @@ PROMPT_TEMPLATE = """\
 • （如有更多重點可繼續列出，最多 5 點）"""
 
 def _parse_ai_output(raw: str) -> dict:
-    """解析 AI 回傳的固定格式"""
+    """解析 AI 回傳的固定格式，支援各種 AI 的格式差異"""
+    # 清除 markdown 粗體
+    clean = raw.replace("**", "")
     summary, bullets = "", ""
-    if "一句摘要：" in raw:
-        lines       = raw.split("\n")
+    if "一句摘要" in clean:
+        lines       = clean.split("\n")
         in_bullets  = False
         bullet_lines = []
         for line in lines:
             t = line.strip()
-            if t.startswith("一句摘要："):
-                summary = t.replace("一句摘要：", "").strip()
-            elif t.startswith("重點條列："):
+            if "一句摘要" in t:
+                # 支援「一句摘要：」「一句摘要:」等
+                summary = re.sub(r"^.*?一句摘要[：:]?\s*", "", t).strip()
+            elif "重點條列" in t:
                 in_bullets = True
-            elif in_bullets and t.startswith("•"):
-                bullet_lines.append(t)
+            elif in_bullets and (t.startswith("•") or t.startswith("-") or t.startswith("*") or re.match(r"^\d+[.、]", t)):
+                # 統一轉成 • 格式
+                cleaned = re.sub(r"^[-*•]\s*", "", t)
+                cleaned = re.sub(r"^\d+[.、]\s*", "", cleaned)
+                bullet_lines.append(f"• {cleaned}")
         bullets = "\n".join(bullet_lines)
     else:
-        summary = raw[:100]
+        summary = clean[:100]
     return {"summary": summary, "bullets": bullets}
 
 def analyze_claude(title: str, desc: str, channel: str) -> dict:
