@@ -3,7 +3,8 @@ YouTube AI Digest v2
 --------------------
 支援 Claude / Gemini / OpenAI 三個 AI，可透過環境變數切換。
 頻道用 YouTube URL 格式輸入，自動解析 Channel ID。
-使用 YouTube Data API v3 抓取影片。
+使用 YouTube Data API v3 抓取影片���
+Gemini 模式：用 yt-dlp 下載音訊 → 上傳 Gemini File API → 只分析音訊（省 88% token）。
 
 環境變數（GitHub Secrets）:
   AI_PROVIDER         - 選擇 AI：claude / gemini / openai（預設 claude）
@@ -22,6 +23,8 @@ import json
 import base64
 import logging
 import time
+import tempfile
+import subprocess
 from datetime import datetime, timezone, timedelta
 
 import requests
@@ -157,10 +160,114 @@ def fetch_channel_videos(channel_id: str, days: int = 1) -> list[dict]:
 
     return videos
 
+# ── 音訊下載與上傳 ────────────────────────────────────────────────────────────
+
+def download_audio(video_url: str) -> str | None:
+    """用 yt-dlp 下載 YouTube 影片的純音訊（m4a），回傳檔案路徑。"""
+    tmp_dir = tempfile.mkdtemp()
+    output_path = os.path.join(tmp_dir, "audio.m4a")
+    cmd = [
+        "yt-dlp",
+        "-x",                          # 只抽音訊
+        "--audio-format", "m4a",       # 輸出 m4a
+        "--audio-quality", "5",        # 中等品質（省空間）
+        "-o", output_path,
+        "--no-playlist",
+        "--quiet",
+        video_url,
+    ]
+    try:
+        subprocess.run(cmd, check=True, timeout=300)
+        size_mb = os.path.getsize(output_path) / (1024 * 1024)
+        log.info(f"   音訊下載完成：{size_mb:.1f} MB")
+        return output_path
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+        log.warning(f"   音訊下載失敗: {e}")
+        return None
+
+def upload_to_gemini(file_path: str, api_key: str) -> str | None:
+    """上傳音訊到 Gemini File API，回傳 file URI。"""
+    file_size = os.path.getsize(file_path)
+    mime_type = "audio/mp4"
+
+    # Step 1: 開始 resumable upload
+    init_url = (
+        f"https://generativelanguage.googleapis.com/upload/v1beta/files"
+        f"?key={api_key}"
+    )
+    init_headers = {
+        "X-Goog-Upload-Protocol": "resumable",
+        "X-Goog-Upload-Command": "start",
+        "X-Goog-Upload-Header-Content-Length": str(file_size),
+        "X-Goog-Upload-Header-Content-Type": mime_type,
+        "Content-Type": "application/json",
+    }
+    init_body = {"file": {"display_name": os.path.basename(file_path)}}
+
+    resp = requests.post(init_url, headers=init_headers, json=init_body, timeout=30)
+    resp.raise_for_status()
+    upload_url = resp.headers.get("X-Goog-Upload-URL")
+    if not upload_url:
+        log.error("   無法取得上傳 URL")
+        return None
+
+    # Step 2: 上傳檔案
+    with open(file_path, "rb") as f:
+        upload_headers = {
+            "X-Goog-Upload-Command": "upload, finalize",
+            "X-Goog-Upload-Offset": "0",
+            "Content-Length": str(file_size),
+        }
+        resp = requests.post(upload_url, headers=upload_headers, data=f, timeout=300)
+        resp.raise_for_status()
+
+    file_info = resp.json().get("file", {})
+    file_uri = file_info.get("uri", "")
+    file_name = file_info.get("name", "")
+    log.info(f"   上傳完成：{file_name}")
+
+    # Step 3: 等待處理完成
+    check_url = (
+        f"https://generativelanguage.googleapis.com/v1beta/{file_name}"
+        f"?key={api_key}"
+    )
+    for _ in range(60):  # 最多等 5 分鐘
+        resp = requests.get(check_url, timeout=15)
+        resp.raise_for_status()
+        state = resp.json().get("state", "")
+        if state == "ACTIVE":
+            log.info(f"   檔案已就緒")
+            return file_uri
+        elif state == "FAILED":
+            log.error(f"   檔案處理失敗")
+            return None
+        time.sleep(5)
+
+    log.error("   檔案處理超時")
+    return None
+
+def delete_gemini_file(file_uri: str, api_key: str):
+    """刪除 Gemini File API 上的檔案。"""
+    # file_uri 格式: https://generativelanguage.googleapis.com/v1beta/files/xxxxx
+    # 需要取出 files/xxxxx 的部分
+    m = re.search(r"(files/[^?]+)", file_uri)
+    if not m:
+        return
+    file_name = m.group(1)
+    delete_url = (
+        f"https://generativelanguage.googleapis.com/v1beta/{file_name}"
+        f"?key={api_key}"
+    )
+    try:
+        requests.delete(delete_url, timeout=15)
+        log.info(f"   已清理遠端檔案")
+    except Exception:
+        pass
+
 # ── AI 分析（Claude / Gemini / OpenAI 三選一）─────────────────────────────────
 
 PROMPT_TEMPLATE = """\
-你是一位專業的財經/知識型內容分析師。請根據這支 YouTube 影片的完整內容進行系統化深度分析。
+你是一位專業的財經/知識型內容分析師。請根據這支 YouTube 影片的完整音訊內容進行系統化深度分析。
 
 頻道：{channel}
 標題：{title}
@@ -177,7 +284,27 @@ PROMPT_TEMPLATE = """\
 • （重點四：給出的投資建議、操作策略或行動指南）
 • （重點五：總結觀點或風險提醒）
 
-注意：請基於影片實際內容分析，引用具體數據和觀點，不要泛泛而談。每個重點都要有實質內容。"""
+注意：請基於影片音訊的實際內容分析，引用具體數據和觀點，不要泛泛而談。每個重點都要有實質內容。"""
+
+PROMPT_TEXT_ONLY = """\
+你是一位專業的內容摘要助手。請根據以下 YouTube 影片資訊進行分析。
+
+頻道：{channel}
+標題：{title}
+影片描述：{desc}
+
+請用繁體中文回覆，格式嚴格如下（不要加其他文字）：
+
+一句摘要：（用一句話說明這支影片的核心內容，不超過 50 字）
+
+重點條列：
+• （重點一）
+• （重點二）
+• （重點三）
+• （重點四）
+• （重點五）
+
+注意：僅基於標題與描述分析。"""
 
 def _parse_ai_output(raw: str) -> dict:
     """解析 AI 回傳的固定格式，支援各種 AI 的格式差異"""
@@ -208,35 +335,47 @@ def analyze_claude(title: str, desc: str, channel: str) -> dict:
     msg = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=2048,
-        messages=[{"role": "user", "content": PROMPT_TEMPLATE.format(
+        messages=[{"role": "user", "content": PROMPT_TEXT_ONLY.format(
             channel=channel, title=title, desc=desc or "（無描述）"
         )}],
     )
     return _parse_ai_output(msg.content[0].text.strip())
 
 def analyze_gemini(title: str, desc: str, channel: str, video_url: str = "") -> dict:
+    """Gemini 分析：下載音訊 → 上傳 File API → 分析 → 清理"""
     api_key = os.environ["GEMINI_API_KEY"]
-    url = (
+    generate_url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
         f"gemini-2.5-flash:generateContent?key={api_key}"
     )
 
-    # 如果有影片 URL，直接讓 Gemini 看影片內容分析
+    file_uri = None
+    audio_path = None
+
+    # 嘗試下載音訊並上傳
     if video_url:
+        audio_path = download_audio(video_url)
+        if audio_path:
+            file_uri = upload_to_gemini(audio_path, api_key)
+            # 刪除本地暫存
+            try:
+                os.remove(audio_path)
+                os.rmdir(os.path.dirname(audio_path))
+            except OSError:
+                pass
+
+    # 組裝 payload
+    if file_uri:
         prompt_text = PROMPT_TEMPLATE.format(
             channel=channel, title=title, desc=desc or "（無描述）"
         )
         parts = [
-            {
-                "fileData": {
-                    "fileUri": video_url,
-                    "mimeType": "video/mp4"
-                }
-            },
-            {"text": prompt_text}
+            {"fileData": {"fileUri": file_uri, "mimeType": "audio/mp4"}},
+            {"text": prompt_text},
         ]
     else:
-        parts = [{"text": PROMPT_TEMPLATE.format(
+        log.warning("   無法取得音訊，改用純文字分析")
+        parts = [{"text": PROMPT_TEXT_ONLY.format(
             channel=channel, title=title, desc=desc or "（無描述）"
         )}]
 
@@ -244,18 +383,24 @@ def analyze_gemini(title: str, desc: str, channel: str, video_url: str = "") -> 
         "contents": [{"parts": parts}],
         "generationConfig": {"maxOutputTokens": 4096},
     }
-    for attempt in range(3):
-        resp = requests.post(url, json=payload, timeout=600)
-        if resp.status_code == 429:
-            wait = 15 * (attempt + 1)
-            log.warning(f"Gemini 速率限制，等待 {wait} 秒後重試...")
-            time.sleep(wait)
-            continue
+
+    try:
+        for attempt in range(3):
+            resp = requests.post(generate_url, json=payload, timeout=600)
+            if resp.status_code == 429:
+                wait = 15 * (attempt + 1)
+                log.warning(f"   Gemini 速率限制，等待 {wait} 秒後重試...")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            return _parse_ai_output(raw.strip())
         resp.raise_for_status()
-        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        return _parse_ai_output(raw.strip())
-    resp.raise_for_status()
-    return {"summary": "重試失敗", "bullets": ""}
+        return {"summary": "重試失敗", "bullets": ""}
+    finally:
+        # 清理 Gemini 遠端檔案
+        if file_uri:
+            delete_gemini_file(file_uri, api_key)
 
 def analyze_openai(title: str, desc: str, channel: str) -> dict:
     import openai
@@ -263,7 +408,7 @@ def analyze_openai(title: str, desc: str, channel: str) -> dict:
     resp = client.chat.completions.create(
         model="gpt-4o-mini",
         max_tokens=2048,
-        messages=[{"role": "user", "content": PROMPT_TEMPLATE.format(
+        messages=[{"role": "user", "content": PROMPT_TEXT_ONLY.format(
             channel=channel, title=title, desc=desc or "（無描述）"
         )}],
     )
@@ -282,7 +427,6 @@ def analyze(title: str, desc: str, channel: str, video_url: str = "") -> tuple[d
         log.warning(f"未知的 AI_PROVIDER '{provider}'，改用 claude")
         provider = "claude"
     try:
-        # Gemini 支援直接傳影片 URL 分析
         if provider == "gemini":
             result = ANALYZERS[provider](title, desc, channel, video_url=video_url)
         else:
@@ -359,7 +503,9 @@ def main():
             log.info(f"   分析：{v['title'][:50]}")
             if new_rows:
                 time.sleep(5)
-            result, used_provider = analyze(v["title"], v["description"], ch["name"], video_url=v["url"])
+            result, used_provider = analyze(
+                v["title"], v["description"], ch["name"], video_url=v["url"]
+            )
 
             new_rows.append([
                 ch["name"],
