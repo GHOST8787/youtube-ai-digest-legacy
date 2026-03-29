@@ -21,6 +21,7 @@ import re
 import json
 import base64
 import logging
+import time
 from datetime import datetime, timezone, timedelta
 
 import requests
@@ -222,7 +223,7 @@ def analyze_gemini(title: str, desc: str, channel: str) -> dict:
     api_key = os.environ["GEMINI_API_KEY"]
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.0-flash:generateContent?key={api_key}"
+        f"gemini-2.5-flash:generateContent?key={api_key}"
     )
     payload = {
         "contents": [{"parts": [{"text": PROMPT_TEMPLATE.format(
@@ -230,10 +231,19 @@ def analyze_gemini(title: str, desc: str, channel: str) -> dict:
         )}]}],
         "generationConfig": {"maxOutputTokens": 600},
     }
-    resp = requests.post(url, json=payload, timeout=30)
+    # Gemini 免費額度有速率限制，429 時自動重試
+    for attempt in range(3):
+        resp = requests.post(url, json=payload, timeout=30)
+        if resp.status_code == 429:
+            wait = 15 * (attempt + 1)
+            log.warning(f"Gemini 速率限制，等待 {wait} 秒後重試...")
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return _parse_ai_output(raw.strip())
     resp.raise_for_status()
-    raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    return _parse_ai_output(raw.strip())
+    return {"summary": "重試失敗", "bullets": ""}
 
 def analyze_openai(title: str, desc: str, channel: str) -> dict:
     import openai
@@ -330,6 +340,8 @@ def main():
                 continue
 
             log.info(f"   分析：{v['title'][:50]}")
+            if new_rows:
+                time.sleep(5)  # 每支影片間隔 5 秒，避免速率限制
             result, used_provider = analyze(v["title"], v["description"], ch["name"])
 
             new_rows.append([
