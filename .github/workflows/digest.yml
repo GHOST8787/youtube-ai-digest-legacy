@@ -49,7 +49,7 @@ jobs:
       - name: Run digest
         env:
           # AI 選擇：手動觸發用選的，排程預設用 claude
-          AI_PROVIDER:        ${{ github.event.inputs.ai_provider || 'claude' }}
+          AI_PROVIDER:        ${{ github.event.inputs.ai_provider || 'gemini' }}
           FETCH_DAYS:         ${{ github.event.inputs.fetch_days || '1' }}
 
           # 三個 AI 的 Key 都設好，實際用哪個由 AI_PROVIDER 決定
