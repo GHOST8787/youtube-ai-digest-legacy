@@ -247,6 +247,7 @@ def analyze_gemini(title: str, desc: str, channel: str) -> dict:
             continue
         resp.raise_for_status()
         raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        log.info(f"   [DEBUG] Gemini 原始回傳:\n{raw.strip()}")
         return _parse_ai_output(raw.strip())
     resp.raise_for_status()
     return {"summary": "重試失敗", "bullets": ""}
@@ -277,6 +278,8 @@ def analyze(title: str, desc: str, channel: str) -> tuple[dict, str]:
         provider = "claude"
     try:
         result = ANALYZERS[provider](title, desc, channel)
+        log.info(f"   [DEBUG] 摘要: {result['summary'][:80]}")
+        log.info(f"   [DEBUG] 條列: {result['bullets'][:120]}")
         return result, provider
     except Exception as e:
         log.error(f"[{provider}] 分析失敗: {e}")
