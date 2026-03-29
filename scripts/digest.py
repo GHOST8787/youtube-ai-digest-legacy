@@ -235,7 +235,7 @@ def analyze_gemini(title: str, desc: str, channel: str) -> dict:
         "contents": [{"parts": [{"text": PROMPT_TEMPLATE.format(
             channel=channel, title=title, desc=desc or "（無描述）"
         )}]}],
-        "generationConfig": {"maxOutputTokens": 600},
+        "generationConfig": {"maxOutputTokens": 2048},
     }
     # Gemini 免費額度有速率限制，429 時自動重試
     for attempt in range(3):
