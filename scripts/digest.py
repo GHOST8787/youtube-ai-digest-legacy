@@ -160,25 +160,24 @@ def fetch_channel_videos(channel_id: str, days: int = 1) -> list[dict]:
 # ── AI 分析（Claude / Gemini / OpenAI 三選一）─────────────────────────────────
 
 PROMPT_TEMPLATE = """\
-你是一位專業的內容摘要助手。請根據以下 YouTube 影片資訊進行分析。
+你是一位專業的財經/知識型內容分析師。請根據這支 YouTube 影片的完整內容進行系統化深度分析。
 
 頻道：{channel}
 標題：{title}
-影片描述：
-{desc}
+影片描述：{desc}
 
 請用繁體中文回覆，格式嚴格如下（不要加其他文字）：
 
 一句摘要：（用一句話說明這支影片的核心內容，不超過 50 字）
 
 重點條列：
-• （重點一：具體說明影片討論的核心議題或論點）
-• （重點二：提及的關鍵數據、人物或事件）
-• （重點三：影片給出的建議或結論）
-• （重點四：如有其他重要觀點）
-• （重點五：如有其他重要觀點）
+• （重點一：影片討論的核心議題，引用具體數據或指標）
+• （重點二：提及的關鍵人物、機構報告或市場事件）
+• （重點三：影片中的具體分析邏輯或論證過程）
+• （重點四：給出的投資建議、操作策略或行動指南）
+• （重點五：總結觀點或風險提醒）
 
-注意：請盡量從描述中提取具體資訊，避免空泛的重複標題內容。每個重點都要有實質內容。"""
+注意：請基於影片實際內容分析，引用具體數據和觀點，不要泛泛而談。每個重點都要有實質內容。"""
 
 def _parse_ai_output(raw: str) -> dict:
     """解析 AI 回傳的固定格式，支援各種 AI 的格式差異"""
@@ -215,20 +214,38 @@ def analyze_claude(title: str, desc: str, channel: str) -> dict:
     )
     return _parse_ai_output(msg.content[0].text.strip())
 
-def analyze_gemini(title: str, desc: str, channel: str) -> dict:
+def analyze_gemini(title: str, desc: str, channel: str, video_url: str = "") -> dict:
     api_key = os.environ["GEMINI_API_KEY"]
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
         f"gemini-2.5-flash:generateContent?key={api_key}"
     )
-    payload = {
-        "contents": [{"parts": [{"text": PROMPT_TEMPLATE.format(
+
+    # 如果有影片 URL，直接讓 Gemini 看影片內容分析
+    if video_url:
+        prompt_text = PROMPT_TEMPLATE.format(
             channel=channel, title=title, desc=desc or "（無描述）"
-        )}]}],
-        "generationConfig": {"maxOutputTokens": 2048},
+        )
+        parts = [
+            {
+                "fileData": {
+                    "fileUri": video_url,
+                    "mimeType": "video/mp4"
+                }
+            },
+            {"text": prompt_text}
+        ]
+    else:
+        parts = [{"text": PROMPT_TEMPLATE.format(
+            channel=channel, title=title, desc=desc or "（無描述）"
+        )}]
+
+    payload = {
+        "contents": [{"parts": parts}],
+        "generationConfig": {"maxOutputTokens": 4096},
     }
     for attempt in range(3):
-        resp = requests.post(url, json=payload, timeout=60)
+        resp = requests.post(url, json=payload, timeout=120)
         if resp.status_code == 429:
             wait = 15 * (attempt + 1)
             log.warning(f"Gemini 速率限制，等待 {wait} 秒後重試...")
@@ -258,14 +275,18 @@ ANALYZERS = {
     "openai": analyze_openai,
 }
 
-def analyze(title: str, desc: str, channel: str) -> tuple[dict, str]:
+def analyze(title: str, desc: str, channel: str, video_url: str = "") -> tuple[dict, str]:
     """根據 AI_PROVIDER 環境變數選擇 AI，回傳 (結果, provider名稱)"""
     provider = os.environ.get("AI_PROVIDER", "claude").lower()
     if provider not in ANALYZERS:
         log.warning(f"未知的 AI_PROVIDER '{provider}'，改用 claude")
         provider = "claude"
     try:
-        result = ANALYZERS[provider](title, desc, channel)
+        # Gemini 支援直接傳影片 URL 分析
+        if provider == "gemini":
+            result = ANALYZERS[provider](title, desc, channel, video_url=video_url)
+        else:
+            result = ANALYZERS[provider](title, desc, channel)
         log.info(f"   摘要: {result['summary'][:80]}")
         log.info(f"   條列: {len(result['bullets'])} 字")
         return result, provider
@@ -338,7 +359,7 @@ def main():
             log.info(f"   分析：{v['title'][:50]}")
             if new_rows:
                 time.sleep(5)
-            result, used_provider = analyze(v["title"], v["description"], ch["name"])
+            result, used_provider = analyze(v["title"], v["description"], ch["name"], video_url=v["url"])
 
             new_rows.append([
                 ch["name"],
