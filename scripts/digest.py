@@ -41,7 +41,7 @@ log = logging.getLogger(__name__)
 #   https://www.youtube.com/channel/UCxxxxxxxxx
 #   https://www.youtube.com/c/頻道名稱
 CHANNELS = [
-    {"name": "頻道A", "url": "https://www.youtube.com/@channelA"},
+    {"name": "頻道A", "url": "https://www.youtube.com/@%E5%90%91%E9%99%BD%E8%AA%AA"},
     {"name": "頻道B", "url": "https://www.youtube.com/@channelB"},
     {"name": "頻道C", "url": "https://www.youtube.com/channel/UCxxxxxxxxxxxxxxxxxx"},
     {"name": "頻道D", "url": "https://www.youtube.com/@channelD"},
