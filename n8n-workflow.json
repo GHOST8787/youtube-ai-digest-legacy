@@ -1,0 +1,280 @@
+{
+  "name": "YouTube AI Digest v2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "cronExpression", "expression": "0 0 * * *"}]
+        }
+      },
+      "id": "node-schedule",
+      "name": "每日 08:00 觸發",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ════════════════════════════════════════════\n// ① 修改頻道清單（用 YouTube URL 格式）\n// ② 修改 AI_PROVIDER：'claude' / 'gemini' / 'openai'\n// ════════════════════════════════════════════\n\nconst AI_PROVIDER = 'claude';  // ← 在這裡切換 AI\n\nconst CHANNELS = [\n  { name: '頻道A', url: 'https://www.youtube.com/@channelA' },\n  { name: '頻道B', url: 'https://www.youtube.com/@channelB' },\n  { name: '頻道C', url: 'https://www.youtube.com/channel/UCxxxxxxxxxxxxxxxxxx' },\n  { name: '頻道D', url: 'https://www.youtube.com/@channelD' },\n  { name: '頻道E', url: 'https://www.youtube.com/@channelE' },\n];\n\nreturn CHANNELS.map(ch => ({ json: { ...ch, aiProvider: AI_PROVIDER } }));"
+      },
+      "id": "node-config",
+      "name": "頻道設定 & AI選擇",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "id": "node-resolve-url",
+      "name": "抓頻道頁面",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 從 YouTube 頁面 HTML 解析 channelId\nconst html = $input.first().json.data || '';\nconst channelData = $('頻道設定 & AI選擇').first().json;\n\nconst match = html.match(/\"channelId\":\"(UC[\\w-]{22})\"/) \n           || html.match(/\"externalId\":\"(UC[\\w-]{22})\"/);\n\nif (!match) {\n  // 如果是 /channel/UCxxxx 格式，直接從 URL 取\n  const urlMatch = channelData.url.match(/\\/channel\\/(UC[\\w-]{22})/);\n  if (urlMatch) {\n    return [{ json: { ...channelData, channelId: urlMatch[1] } }];\n  }\n  // 找不到就跳過\n  return [];\n}\n\nreturn [{ json: { ...channelData, channelId: match[1] } }];"
+      },
+      "id": "node-parse-id",
+      "name": "解析 Channel ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.youtube.com/feeds/videos.xml?channel_id={{ $json.channelId }}",
+        "options": {"response": {"response": {"responseFormat": "text"}}}
+      },
+      "id": "node-rss",
+      "name": "抓 RSS Feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 解析 RSS，取最新 3 支（1天內）\nconst xml = $input.first().json.data || '';\nconst meta = $('解析 Channel ID').first().json;\n\nconst cutoff = Date.now() - 24 * 60 * 60 * 1000;\nconst entries = [];\nconst re = /<entry>([\\s\\S]*?)<\\/entry>/g;\nlet m;\n\nwhile ((m = re.exec(xml)) !== null && entries.length < 3) {\n  const b = m[1];\n  const published = new Date((b.match(/<published>([^<]+)<\\/published>/) || [])[1] || 0);\n  if (published.getTime() < cutoff) continue;\n\n  const videoId = (b.match(/<yt:videoId>([^<]+)<\\/yt:videoId>/) || [])[1] || '';\n  const title   = ((b.match(/<title>([^<]+)<\\/title>/) || [])[1] || '')\n                    .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');\n  const desc    = ((b.match(/<media:description>([\\s\\S]*?)<\\/media:description>/) || [])[1] || '')\n                    .replace(/<[^>]+>/g, '').trim().slice(0, 800);\n\n  if (!videoId) continue;\n  entries.push({\n    channelName: meta.name,\n    channelUrl:  meta.url,\n    aiProvider:  meta.aiProvider,\n    videoId,\n    title,\n    url:         `https://www.youtube.com/watch?v=${videoId}`,\n    published:   published.toISOString().slice(0, 10),\n    description: desc,\n  });\n}\n\nif (!entries.length) return [];\nreturn entries.map(e => ({ json: e }));"
+      },
+      "id": "node-parse-rss",
+      "name": "解析影片清單",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.videoId }}",
+              "rightValue": "",
+              "operator": {"type": "string", "operation": "notEmpty"}
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "node-filter",
+      "name": "過濾空結果",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.aiProvider }}",
+                    "rightValue": "claude",
+                    "operator": {"type": "string", "operation": "equals"}
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "claude"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.aiProvider }}",
+                    "rightValue": "gemini",
+                    "operator": {"type": "string", "operation": "equals"}
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "gemini"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.aiProvider }}",
+                    "rightValue": "openai",
+                    "operator": {"type": "string", "operation": "equals"}
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "openai"
+            }
+          ]
+        }
+      },
+      "id": "node-router",
+      "name": "AI 路由",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "x-api-key", "value": "={{ $credentials.claudeApiKey }}"},
+            {"name": "anthropic-version", "value": "2023-06-01"},
+            {"name": "content-type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "model": "claude-haiku-4-5-20251001",
+          "max_tokens": 600,
+          "messages": [{
+            "role": "user",
+            "content": "=你是專業的內容摘要助手。\n\n頻道：{{ $json.channelName }}\n標題：{{ $json.title }}\n影片描述：\n{{ $json.description || '（無描述）' }}\n\n請用繁體中文回覆，格式如下：\n\n一句摘要：（50字內）\n\n重點條列：\n• 重點一\n• 重點二\n• 重點三"
+          }]
+        }
+      },
+      "id": "node-claude",
+      "name": "Claude 分析",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 160],
+      "credentials": {"httpHeaderAuth": {"id": "claude-header-auth", "name": "Claude API Key"}}
+    },
+    {
+      "parameters": {
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $credentials.geminiApiKey }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "contents": [{
+            "parts": [{
+              "text": "=你是專業的內容摘要助手。\n\n頻道：{{ $json.channelName }}\n標題：{{ $json.title }}\n影片描述：\n{{ $json.description || '（無描述）' }}\n\n請用繁體中文回覆，格式如下：\n\n一句摘要：（50字內）\n\n重點條列：\n• 重點一\n• 重點二\n• 重點三"
+            }]
+          }],
+          "generationConfig": {"maxOutputTokens": 600}
+        }
+      },
+      "id": "node-gemini",
+      "name": "Gemini 分析",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 300],
+      "credentials": {"httpQueryAuth": {"id": "gemini-api-key", "name": "Gemini API Key"}}
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{ $credentials.openaiApiKey }}"},
+            {"name": "content-type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "model": "gpt-4o-mini",
+          "max_tokens": 600,
+          "messages": [{
+            "role": "user",
+            "content": "=你是專業的內容摘要助手。\n\n頻道：{{ $json.channelName }}\n標題：{{ $json.title }}\n影片描述：\n{{ $json.description || '（無描述）' }}\n\n請用繁體中文回覆，格式如下：\n\n一句摘要：（50字內）\n\n重點條列：\n• 重點一\n• 重點二\n• 重點三"
+          }]
+        }
+      },
+      "id": "node-openai",
+      "name": "OpenAI 分析",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 440],
+      "credentials": {"httpHeaderAuth": {"id": "openai-header-auth", "name": "OpenAI API Key"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "// 統一解析三個 AI 的回傳格式\nconst raw = (() => {\n  const data = $input.first().json;\n  // Claude\n  if (data.content?.[0]?.text) return data.content[0].text;\n  // Gemini\n  if (data.candidates?.[0]?.content?.parts?.[0]?.text)\n    return data.candidates[0].content.parts[0].text;\n  // OpenAI\n  if (data.choices?.[0]?.message?.content)\n    return data.choices[0].message.content;\n  return '';\n})().trim();\n\nlet summary = '', bullets = '';\nif (raw.includes('一句摘要：')) {\n  const lines = raw.split('\\n');\n  let inBullets = false;\n  const bl = [];\n  for (const line of lines) {\n    const t = line.trim();\n    if (t.startsWith('一句摘要：')) summary = t.replace('一句摘要：','').trim();\n    else if (t.startsWith('重點條列：')) inBullets = true;\n    else if (inBullets && t.startsWith('•')) bl.push(t);\n  }\n  bullets = bl.join('\\n');\n} else {\n  summary = raw.slice(0, 100);\n}\n\n// 取得原始影片資料（從路由前的節點）\nconst video = $('過濾空結果').first().json;\nconst tw = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });\n\nreturn [{ json: {\n  channel:    video.channelName,\n  title:      video.title,\n  date:       video.published,\n  url:        video.url,\n  summary,\n  bullets,\n  aiSource:   video.aiProvider.toUpperCase(),\n  analyzedAt: tw,\n} }];"
+      },
+      "id": "node-merge",
+      "name": "整理輸出格式",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {"__rl": true, "value": "YOUR_SPREADSHEET_ID", "mode": "id"},
+        "sheetName":  {"__rl": true, "value": "AI摘要", "mode": "name"},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "頻道":    "={{ $json.channel }}",
+            "標題":    "={{ $json.title }}",
+            "發布日期": "={{ $json.date }}",
+            "影片連結": "={{ $json.url }}",
+            "一句摘要": "={{ $json.summary }}",
+            "重點條列": "={{ $json.bullets }}",
+            "AI來源":  "={{ $json.aiSource }}",
+            "分析時間": "={{ $json.analyzedAt }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "node-sheets",
+      "name": "寫入 Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2440, 300]
+    }
+  ],
+  "connections": {
+    "每日 08:00 觸發":   {"main": [[{"node": "頻道設定 & AI選擇", "type": "main", "index": 0}]]},
+    "頻道設定 & AI選擇":  {"main": [[{"node": "抓頻道頁面", "type": "main", "index": 0}]]},
+    "抓頻道頁面":         {"main": [[{"node": "解析 Channel ID", "type": "main", "index": 0}]]},
+    "解析 Channel ID":   {"main": [[{"node": "抓 RSS Feed", "type": "main", "index": 0}]]},
+    "抓 RSS Feed":       {"main": [[{"node": "解析影片清單", "type": "main", "index": 0}]]},
+    "解析影片清單":       {"main": [[{"node": "過濾空結果", "type": "main", "index": 0}]]},
+    "過濾空結果":         {"main": [[{"node": "AI 路由", "type": "main", "index": 0}]]},
+    "AI 路由": {
+      "main": [
+        [{"node": "Claude 分析",  "type": "main", "index": 0}],
+        [{"node": "Gemini 分析",  "type": "main", "index": 0}],
+        [{"node": "OpenAI 分析", "type": "main", "index": 0}]
+      ]
+    },
+    "Claude 分析":  {"main": [[{"node": "整理輸出格式", "type": "main", "index": 0}]]},
+    "Gemini 分析":  {"main": [[{"node": "整理輸出格式", "type": "main", "index": 0}]]},
+    "OpenAI 分析": {"main": [[{"node": "整理輸出格式", "type": "main", "index": 0}]]},
+    "整理輸出格式":  {"main": [[{"node": "寫入 Google Sheets", "type": "main", "index": 0}]]}
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true
+  },
+  "tags": ["youtube", "ai", "digest", "v2"]
+}

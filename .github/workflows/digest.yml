@@ -1,0 +1,58 @@
+name: YouTube AI Digest
+
+on:
+  # 每天台灣時間 08:00（UTC 00:00）
+  schedule:
+    - cron: "0 0 * * *"
+
+  # 手動觸發，可以指定要用哪個 AI
+  workflow_dispatch:
+    inputs:
+      ai_provider:
+        description: "選擇 AI（claude / gemini / openai）"
+        required: false
+        default: "claude"
+        type: choice
+        options:
+          - claude
+          - gemini
+          - openai
+      fetch_days:
+        description: "抓幾天內的影片（預設 1）"
+        required: false
+        default: "1"
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run digest
+        env:
+          # AI 選擇：手動觸發用選的，排程預設用 claude
+          AI_PROVIDER:        ${{ github.event.inputs.ai_provider || 'claude' }}
+          FETCH_DAYS:         ${{ github.event.inputs.fetch_days || '1' }}
+
+          # 三個 AI 的 Key 都設好，實際用哪個由 AI_PROVIDER 決定
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY:     ${{ secrets.OPENAI_API_KEY }}
+
+          # Google Sheets
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SPREADSHEET_ID:     ${{ secrets.SPREADSHEET_ID }}
+
+        run: python scripts/digest.py
