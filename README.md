@@ -1,5 +1,7 @@
 # YouTube AI Digest v2
 
+> 📅 專案開始：2026-03
+
 [![Python](https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-ready-2088FF?logo=githubactions&logoColor=white)](https://github.com/features/actions)
 [![n8n](https://img.shields.io/badge/n8n-ready-EA4B71?logo=n8n&logoColor=white)](https://n8n.io/)
