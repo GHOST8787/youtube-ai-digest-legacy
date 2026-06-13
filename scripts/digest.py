@@ -1,14 +1,14 @@
 """
 YouTube AI Digest v2
 --------------------
-支援 Claude / Gemini / OpenAI 三個 AI，可透過環境變數切換。
+支援 Gemini / OpenAI 兩個 AI，可透過環境變數切換。
 頻道用 YouTube URL 格式輸入，自動解析 Channel ID。
-使用 YouTube Data API v3 抓取影片���
+使用 YouTube Data API v3 抓取影片。
 Gemini 模式：用 yt-dlp 下載音訊 → 上傳 Gemini File API → 只分析音訊（省 88% token）。
+OpenAI 模式：用 yt-dlp 下載音訊 → Whisper API 轉文字 → GPT-4o 分析完整逐字稿。
 
 環境變數（GitHub Secrets）:
-  AI_PROVIDER         - 選擇 AI：claude / gemini / openai（預設 claude）
-  ANTHROPIC_API_KEY   - Claude API key（AI_PROVIDER=claude 時需要）
+  AI_PROVIDER         - 選擇 AI：gemini / openai（預設 gemini）
   GEMINI_API_KEY      - Gemini API key（AI_PROVIDER=gemini 時需要）
   OPENAI_API_KEY      - OpenAI API key（AI_PROVIDER=openai 時需要）
   YOUTUBE_API_KEY     - YouTube Data API v3 key（必填）
@@ -248,8 +248,6 @@ def upload_to_gemini(file_path: str, api_key: str) -> str | None:
 
 def delete_gemini_file(file_uri: str, api_key: str):
     """刪除 Gemini File API 上的檔案。"""
-    # file_uri 格式: https://generativelanguage.googleapis.com/v1beta/files/xxxxx
-    # 需要取出 files/xxxxx 的部分
     m = re.search(r"(files/[^?]+)", file_uri)
     if not m:
         return
@@ -264,7 +262,70 @@ def delete_gemini_file(file_uri: str, api_key: str):
     except Exception:
         pass
 
-# ── AI 分析（Claude / Gemini / OpenAI 三選一）─────────────────────────────────
+# ── Whisper 語音轉文字（OpenAI 用）────────────────────────────────────────────
+
+def transcribe_with_whisper(audio_path: str) -> str | None:
+    """用 OpenAI Whisper API 將音訊轉成文字。限制 25MB，超過就切段。"""
+    import openai
+    client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+    file_size_mb = os.path.getsize(audio_path) / (1024 * 1024)
+
+    if file_size_mb <= 25:
+        log.info(f"   Whisper 轉錄中（{file_size_mb:.1f} MB）...")
+        with open(audio_path, "rb") as f:
+            result = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=f,
+                language="zh",
+                response_format="text",
+            )
+        log.info(f"   轉錄完成：{len(result)} 字")
+        return result
+
+    # 超過 25MB：用 ffmpeg 切成 20 分鐘段落
+    log.info(f"   音訊 {file_size_mb:.1f} MB 超過 25MB，切段處理...")
+    tmp_dir = os.path.dirname(audio_path)
+    segment_pattern = os.path.join(tmp_dir, "segment_%03d.m4a")
+    cmd = [
+        "ffmpeg", "-i", audio_path,
+        "-f", "segment",
+        "-segment_time", "1200",  # 20 分鐘一段
+        "-c", "copy",
+        "-reset_timestamps", "1",
+        segment_pattern,
+        "-y", "-loglevel", "quiet",
+    ]
+    try:
+        subprocess.run(cmd, check=True, timeout=120)
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        log.warning(f"   ffmpeg 切段失敗: {e}")
+        # fallback: 直接送原檔試試
+        with open(audio_path, "rb") as f:
+            result = client.audio.transcriptions.create(
+                model="whisper-1", file=f, language="zh", response_format="text",
+            )
+        return result
+
+    # 逐段轉錄
+    import glob
+    segments = sorted(glob.glob(os.path.join(tmp_dir, "segment_*.m4a")))
+    all_text = []
+    for i, seg in enumerate(segments):
+        seg_size = os.path.getsize(seg) / (1024 * 1024)
+        log.info(f"   轉錄段落 {i+1}/{len(segments)}（{seg_size:.1f} MB）...")
+        with open(seg, "rb") as f:
+            text = client.audio.transcriptions.create(
+                model="whisper-1", file=f, language="zh", response_format="text",
+            )
+        all_text.append(text)
+        os.remove(seg)
+
+    full_text = "\n".join(all_text)
+    log.info(f"   全部轉錄完成：{len(full_text)} 字")
+    return full_text
+
+# ── AI 分析（Gemini / OpenAI 二選一）─────────────────────────────────────────
 
 PROMPT_TEMPLATE = """\
 你是一位專業的財經/知識型內容分析師。請根據這支 YouTube 影片的完整音訊內容進行系統化深度分析。
@@ -285,6 +346,30 @@ PROMPT_TEMPLATE = """\
 • （重點五：總結觀點或風險提醒）
 
 注意：請基於影片音訊的實際內容分析，引用具體數據和觀點，不要泛泛而談。每個重點都要有實質內容。"""
+
+PROMPT_WITH_TRANSCRIPT = """\
+你是一位專業的財經/知識型內容分析師。請根據這支 YouTube 影片的完整逐字稿進行系統化深度分析。
+
+頻道：{channel}
+標題：{title}
+影片描述：{desc}
+
+── 逐字稿 ──
+{transcript}
+── 逐字稿結束 ──
+
+請用繁體中文回覆，格式嚴格如下（不要加其他文字）：
+
+一句摘要：（用一句話說明這支影片的核心內容，不超過 50 字）
+
+重點條列：
+• （重點一：影片討論的核心議題，引用具體數據或指標）
+• （重點二：提及的關鍵人物、機構報告或市場事件）
+• （重點三：影片中的具體分析邏輯或論證過程）
+• （重點四：給出的投資建議、操作策略或行動指南）
+• （重點五：總結觀點或風險提醒）
+
+注意：請基於逐字稿的實際內容分析，引用具體數據和觀點，不要泛泛而談。每個重點都要有實質內容。"""
 
 PROMPT_TEXT_ONLY = """\
 你是一位專業的內容摘要助手。請根據以下 YouTube 影片資訊進行分析。
@@ -328,18 +413,6 @@ def _parse_ai_output(raw: str) -> dict:
     else:
         summary = clean[:100]
     return {"summary": summary, "bullets": bullets}
-
-def analyze_claude(title: str, desc: str, channel: str) -> dict:
-    import anthropic
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    msg = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=2048,
-        messages=[{"role": "user", "content": PROMPT_TEXT_ONLY.format(
-            channel=channel, title=title, desc=desc or "（無描述）"
-        )}],
-    )
-    return _parse_ai_output(msg.content[0].text.strip())
 
 def analyze_gemini(title: str, desc: str, channel: str, video_url: str = "") -> dict:
     """Gemini 分析：下載音訊 → 上傳 File API → 分析 → 清理"""
@@ -402,35 +475,69 @@ def analyze_gemini(title: str, desc: str, channel: str, video_url: str = "") -> 
         if file_uri:
             delete_gemini_file(file_uri, api_key)
 
-def analyze_openai(title: str, desc: str, channel: str) -> dict:
+def analyze_openai(title: str, desc: str, channel: str, video_url: str = "") -> dict:
+    """OpenAI 分析：下載音訊 → Whisper 轉文字 → GPT-4o 分析逐字稿"""
     import openai
     client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        max_tokens=2048,
-        messages=[{"role": "user", "content": PROMPT_TEXT_ONLY.format(
+
+    transcript = None
+    audio_path = None
+
+    # 嘗試下載音訊並轉錄
+    if video_url:
+        audio_path = download_audio(video_url)
+        if audio_path:
+            transcript = transcribe_with_whisper(audio_path)
+            # 刪除本地暫存
+            try:
+                os.remove(audio_path)
+                os.rmdir(os.path.dirname(audio_path))
+            except OSError:
+                pass
+
+    # 組裝 prompt
+    if transcript:
+        # 逐字稿太長的話截斷（GPT-4o 上下文 128k，但留空間給回覆）
+        if len(transcript) > 60000:
+            transcript = transcript[:60000] + "\n…（逐字稿過長，已截斷）"
+        prompt = PROMPT_WITH_TRANSCRIPT.format(
+            channel=channel, title=title,
+            desc=desc or "（無描述）", transcript=transcript,
+        )
+    else:
+        log.warning("   無法取得逐字稿，改用純文字分析")
+        prompt = PROMPT_TEXT_ONLY.format(
             channel=channel, title=title, desc=desc or "（無描述）"
-        )}],
-    )
-    return _parse_ai_output(resp.choices[0].message.content.strip())
+        )
+
+    for attempt in range(3):
+        try:
+            resp = client.chat.completions.create(
+                model="gpt-4o",
+                max_tokens=4096,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return _parse_ai_output(resp.choices[0].message.content.strip())
+        except openai.RateLimitError:
+            wait = 15 * (attempt + 1)
+            log.warning(f"   OpenAI 速率限制，等待 {wait} 秒後重試...")
+            time.sleep(wait)
+
+    return {"summary": "重試失敗", "bullets": ""}
 
 ANALYZERS = {
-    "claude": analyze_claude,
     "gemini": analyze_gemini,
     "openai": analyze_openai,
 }
 
 def analyze(title: str, desc: str, channel: str, video_url: str = "") -> tuple[dict, str]:
     """根據 AI_PROVIDER 環境變數選擇 AI，回傳 (結果, provider名稱)"""
-    provider = os.environ.get("AI_PROVIDER", "claude").lower()
+    provider = os.environ.get("AI_PROVIDER", "gemini").lower()
     if provider not in ANALYZERS:
-        log.warning(f"未知的 AI_PROVIDER '{provider}'，改用 claude")
-        provider = "claude"
+        log.warning(f"未知的 AI_PROVIDER '{provider}'，改用 gemini")
+        provider = "gemini"
     try:
-        if provider == "gemini":
-            result = ANALYZERS[provider](title, desc, channel, video_url=video_url)
-        else:
-            result = ANALYZERS[provider](title, desc, channel)
+        result = ANALYZERS[provider](title, desc, channel, video_url=video_url)
         log.info(f"   摘要: {result['summary'][:80]}")
         log.info(f"   條列: {len(result['bullets'])} 字")
         return result, provider
@@ -471,7 +578,7 @@ def get_existing_urls(ws) -> set[str]:
 # ── 主程式 ─────────────────────────────────────────────────────────────────────
 
 def main():
-    provider = os.environ.get("AI_PROVIDER", "claude").lower()
+    provider = os.environ.get("AI_PROVIDER", "gemini").lower()
     log.info(f"=== YouTube AI Digest v2 | AI: {provider.upper()} ===")
     log.info(f"抓取範圍：過去 {FETCH_DAYS} 天，每頻道最多 {MAX_VIDEOS_PER_CHANNEL} 支")
 

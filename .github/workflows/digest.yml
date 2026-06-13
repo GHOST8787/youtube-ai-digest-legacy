@@ -9,12 +9,11 @@ on:
   workflow_dispatch:
     inputs:
       ai_provider:
-        description: "選擇 AI（claude / gemini / openai）"
+        description: "選擇 AI（gemini / openai）"
         required: false
-        default: "claude"
+        default: "gemini"
         type: choice
         options:
-          - claude
           - gemini
           - openai
       fetch_days:
@@ -48,12 +47,11 @@ jobs:
 
       - name: Run digest
         env:
-          # AI 選擇：手動觸發用選的，排程預設用 claude
+          # AI 選擇：手動觸發用選的，排程預設用 gemini
           AI_PROVIDER:        ${{ github.event.inputs.ai_provider || 'gemini' }}
           FETCH_DAYS:         ${{ github.event.inputs.fetch_days || '1' }}
 
-          # 三個 AI 的 Key 都設好，實際用哪個由 AI_PROVIDER 決定
-          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          # 兩個 AI 的 Key，實際用哪個由 AI_PROVIDER 決定
           GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY:     ${{ secrets.OPENAI_API_KEY }}
 

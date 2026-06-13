@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YT Digest — Mockup v3</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'yt-red':   '#FF0000',
+                        'yt-red-2': '#CC0000',
+                        'yt-ink':   '#0F0F0F',
+                        'yt-meta':  '#606060',
+                        'yt-line':  '#E5E5E5',
+                        'yt-bg':    '#F9F9F9',
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                },
+            },
+        };
+    </script>
+
+    <style>
+        body { color: #0F0F0F; background: #FFFFFF; }
+        .section-label {
+            position: sticky; top: 0; z-index: 50;
+            background: #0F0F0F; color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px; letter-spacing: 0.15em;
+            padding: 8px 24px; text-transform: uppercase;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .card-hover { transition: all 0.2s ease; }
+        .card-hover:hover { background: #F9F9F9; }
+        .step-line { position: absolute; left: 19px; top: 40px; bottom: -16px; width: 2px; background: #E5E5E5; }
+        .step-line.done { background: #FF0000; }
+        details[open] summary .chev { transform: rotate(180deg); }
+        .chev { transition: transform 0.2s ease; }
+        .input-mono { font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.02em; }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #E5E5E5; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #C0C0C0; }
+    </style>
+</head>
+
+<body class="font-sans">
+
+<!-- ============================================================ -->
+<!-- TOP — mockup nav (跳到各 section) -->
+<!-- ============================================================ -->
+<nav class="sticky top-0 z-[60] bg-white/95 backdrop-blur border-b border-yt-line">
+    <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-yt-red rounded-md flex items-center justify-center">
+                <i class="fas fa-play text-white text-xs ml-0.5"></i>
+            </div>
+            <div>
+                <div class="font-extrabold text-lg leading-none">YT Digest</div>
+                <div class="text-[10px] text-yt-meta font-mono uppercase tracking-widest">mockup v3</div>
+            </div>
+        </div>
+        <div class="hidden md:flex items-center gap-1 text-sm font-medium text-yt-meta">
+            <a href="#v1" class="px-3 py-1.5 rounded-full hover:bg-yt-bg hover:text-yt-ink">Login</a>
+            <a href="#v2" class="px-3 py-1.5 rounded-full hover:bg-yt-bg hover:text-yt-ink">流程設定</a>
+            <a href="#v3" class="px-3 py-1.5 rounded-full hover:bg-yt-bg hover:text-yt-ink">影片清單</a>
+            <a href="#v4" class="px-3 py-1.5 rounded-full hover:bg-yt-bg hover:text-yt-ink">影片詳情</a>
+        </div>
+        <div class="text-[11px] text-yt-meta font-mono">紅白 YT 風 · 4 個 view</div>
+    </div>
+</nav>
+
+<!-- ============================================================ -->
+<!-- VIEW 1 — Login -->
+<!-- ============================================================ -->
+<div class="section-label" id="v1">VIEW 1 / 登入頁</div>
+
+<section class="min-h-[90vh] flex items-center justify-center bg-white py-20">
+    <div class="max-w-md w-full px-6">
+        <div class="text-center mb-12">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-yt-red rounded-2xl mb-6">
+                <i class="fas fa-play text-white text-2xl ml-1"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold mb-3 tracking-tight">YT Digest</h1>
+            <p class="text-yt-meta text-sm leading-relaxed">
+                每天自動把你訂閱的頻道<br>
+                整理成可驗證的中文重點
+            </p>
+        </div>
+
+        <button class="w-full flex items-center justify-center gap-3 py-3.5 px-6 border-2 border-yt-line rounded-full hover:border-yt-ink card-hover font-semibold text-sm">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            <span>使用 Google 登入</span>
+        </button>
+
+        <div class="mt-8 text-center">
+            <p class="text-xs text-yt-meta leading-relaxed">
+                登入後可以儲存你的 API key 與訂閱頻道<br>
+                所有資料只屬於你的帳號
+            </p>
+        </div>
+
+        <div class="mt-12 pt-8 border-t border-yt-line">
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <div class="text-2xl font-extrabold text-yt-red">20</div>
+                    <div class="text-[10px] text-yt-meta font-mono uppercase tracking-wider mt-1">支/月</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-extrabold text-yt-red">~$6</div>
+                    <div class="text-[10px] text-yt-meta font-mono uppercase tracking-wider mt-1">月成本</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-extrabold text-yt-red">BYOK</div>
+                    <div class="text-[10px] text-yt-meta font-mono uppercase tracking-wider mt-1">你的 key</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- VIEW 2 — BYOK Flow Settings -->
+<!-- ============================================================ -->
+<div class="section-label" id="v2">VIEW 2 / BYOK 流程設定</div>
+
+<section class="bg-yt-bg py-20">
+    <div class="max-w-4xl mx-auto px-6">
+
+        <div class="flex items-end justify-between mb-10">
+            <div>
+                <div class="text-[11px] text-yt-meta font-mono uppercase tracking-widest mb-2">Settings</div>
+                <h2 class="text-3xl font-extrabold tracking-tight">影片處理流程</h2>
+                <p class="text-yt-meta text-sm mt-2">每一步用什麼工具、誰付錢，完全透明</p>
+            </div>
+            <button class="px-5 py-2.5 bg-yt-red hover:bg-yt-red-2 text-white font-semibold rounded-full text-sm">
+                儲存設定
+            </button>
+        </div>
+
+        <!-- Step 1 -->
+        <div class="bg-white rounded-2xl border border-yt-line p-6 mb-4 relative">
+            <div class="flex items-start gap-5">
+                <div class="w-10 h-10 rounded-full bg-yt-ink text-white flex items-center justify-center font-bold relative shrink-0">
+                    1
+                    <div class="step-line done"></div>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="font-bold text-lg">下載影片</h3>
+                        <span class="text-[11px] font-mono px-2 py-0.5 bg-yt-bg text-yt-meta rounded">內建免費</span>
+                    </div>
+                    <p class="text-sm text-yt-meta">工具：<span class="font-mono text-yt-ink">yt-dlp</span> · 無需 API key</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="bg-white rounded-2xl border border-yt-line p-6 mb-4 relative">
+            <div class="flex items-start gap-5">
+                <div class="w-10 h-10 rounded-full bg-yt-ink text-white flex items-center justify-center font-bold relative shrink-0">
+                    2
+                    <div class="step-line done"></div>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="font-bold text-lg">抽取音檔</h3>
+                        <span class="text-[11px] font-mono px-2 py-0.5 bg-yt-bg text-yt-meta rounded">內建免費</span>
+                    </div>
+                    <p class="text-sm text-yt-meta">工具：<span class="font-mono text-yt-ink">ffmpeg</span> · 無需 API key</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3 — Whisper -->
+        <div class="bg-white rounded-2xl border border-yt-line p-6 mb-4 relative">
+            <div class="flex items-start gap-5">
+                <div class="w-10 h-10 rounded-full bg-yt-ink text-white flex items-center justify-center font-bold relative shrink-0">
+                    3
+                    <div class="step-line"></div>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg">語音轉文字（Whisper）</h3>
+                        <span class="text-[11px] font-mono px-2 py-0.5 bg-green-50 text-green-700 rounded">使用免費額度</span>
+                    </div>
+
+                    <label class="flex items-start gap-3 p-3 border-2 border-yt-red bg-red-50/30 rounded-xl cursor-pointer mb-2">
+                        <input type="checkbox" checked class="mt-1 w-4 h-4 accent-yt-red">
+                        <div class="flex-1">
+                            <div class="font-semibold text-sm">使用 Sunny 提供的 Groq Whisper</div>
+                            <div class="text-xs text-yt-meta mt-0.5">完全免費 · 走 Sunny 的 free tier · 月用量受限時會排隊</div>
+                        </div>
+                    </label>
+
+                    <label class="flex items-start gap-3 p-3 border border-yt-line rounded-xl cursor-pointer hover:bg-yt-bg">
+                        <input type="checkbox" class="mt-1 w-4 h-4 accent-yt-red">
+                        <div class="flex-1">
+                            <div class="font-semibold text-sm">使用我自己的 API key</div>
+                            <div class="text-xs text-yt-meta mt-0.5 mb-3">如果想避免排隊或要更穩定，可以填自己的 key</div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-2">
+                                <select class="px-3 py-2 border border-yt-line rounded-lg text-sm bg-white" disabled>
+                                    <option>Groq</option>
+                                    <option>OpenAI</option>
+                                </select>
+                                <input type="password" placeholder="貼上你的 API key" value="gsk_xxxxxxxxxxxxxxxxxx" class="input-mono px-3 py-2 border border-yt-line rounded-lg bg-white" disabled>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4 — LLM -->
+        <div class="bg-white rounded-2xl border border-yt-line p-6 mb-4 relative">
+            <div class="flex items-start gap-5">
+                <div class="w-10 h-10 rounded-full bg-yt-red text-white flex items-center justify-center font-bold relative shrink-0">
+                    4
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg">重點整理 + 翻譯<span class="text-yt-red ml-1.5">★ 必填</span></h3>
+                        <span class="text-[11px] font-mono px-2 py-0.5 bg-red-50 text-yt-red rounded">需要你的 key</span>
+                    </div>
+
+                    <p class="text-xs text-yt-meta mb-4">這一步成本較高，無法用 Sunny 的額度，需要你自己的 LLM API key</p>
+
+                    <div class="space-y-2 mb-4">
+                        <label class="block text-xs font-semibold text-yt-meta uppercase tracking-wider mb-1.5">選擇模型</label>
+                        <div class="relative">
+                            <select class="w-full appearance-none px-4 py-3 border-2 border-yt-line rounded-xl text-sm bg-white font-semibold hover:border-yt-ink focus:border-yt-red focus:outline-none cursor-pointer">
+                                <option>Claude Sonnet 4.6 — $0.30/支 (推薦)</option>
+                                <option>Claude Opus 4.7 — $2.00/支</option>
+                                <option>Claude Haiku 4.5 — $0.13/支</option>
+                                <option>GPT-4o — $0.50/支</option>
+                                <option>Gemini 2.5 Pro — $0.25/支</option>
+                            </select>
+                            <i class="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-yt-meta text-xs pointer-events-none"></i>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2 mb-4">
+                        <label class="block text-xs font-semibold text-yt-meta uppercase tracking-wider mb-1.5">API Key</label>
+                        <div class="flex gap-2">
+                            <input type="password" value="sk-ant-api03-xxxxxxxxxxxxxxxxxxxx" class="input-mono flex-1 px-4 py-3 border-2 border-yt-line rounded-xl bg-white focus:border-yt-red focus:outline-none">
+                            <button class="px-4 py-3 border-2 border-yt-line rounded-xl hover:bg-yt-bg text-sm font-semibold">
+                                <i class="far fa-eye text-yt-meta"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 text-xs">
+                        <i class="fas fa-lock text-yt-meta"></i>
+                        <span class="text-yt-meta">AES-256-GCM 加密儲存 · 最後更新：</span>
+                        <span class="font-mono text-yt-ink">2026-05-15 11:42</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="mt-8 p-6 bg-white rounded-2xl border-2 border-yt-ink">
+            <div class="flex items-center justify-between mb-4">
+                <div class="text-sm font-bold uppercase tracking-wider">本月用量</div>
+                <div class="text-sm font-mono"><span class="text-yt-red font-bold text-lg">12</span> <span class="text-yt-meta">/ 20 支</span></div>
+            </div>
+            <div class="h-2 bg-yt-line rounded-full overflow-hidden mb-6">
+                <div class="h-full bg-yt-red" style="width: 60%"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-6 text-sm">
+                <div>
+                    <div class="text-yt-meta text-xs uppercase tracking-wider mb-1">每支預估成本</div>
+                    <div class="font-mono font-bold text-2xl">$0.30</div>
+                </div>
+                <div>
+                    <div class="text-yt-meta text-xs uppercase tracking-wider mb-1">本月你的負擔</div>
+                    <div class="font-mono font-bold text-2xl text-yt-red">~$6</div>
+                </div>
+            </div>
+            <p class="mt-4 pt-4 border-t border-yt-line text-xs text-yt-meta">
+                Whisper 用 Sunny 的 Groq free tier · 你只付 Claude API（步驟 4）的錢
+            </p>
+        </div>
+
+        <!-- Channel subscriptions -->
+        <div class="mt-8 p-6 bg-white rounded-2xl border border-yt-line">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="font-bold text-lg">訂閱頻道</h3>
+                    <p class="text-xs text-yt-meta mt-0.5">每天自動檢查新影片並處理</p>
+                </div>
+                <button class="px-4 py-2 border-2 border-yt-line hover:border-yt-ink rounded-full text-sm font-semibold">
+                    <i class="fas fa-plus mr-1.5 text-xs"></i> 新增頻道
+                </button>
+            </div>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between p-3 border border-yt-line rounded-xl hover:bg-yt-bg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-yt-red/10 flex items-center justify-center">
+                            <i class="fas fa-broadcast-tower text-yt-red text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="font-semibold text-sm">向陽說</div>
+                            <div class="text-xs text-yt-meta font-mono">@xiangyang · 上次拉取 6 分鐘前</div>
+                        </div>
+                    </div>
+                    <button class="text-yt-meta hover:text-yt-red text-sm"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="flex items-center justify-between p-3 border border-yt-line rounded-xl hover:bg-yt-bg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-yt-red/10 flex items-center justify-center">
+                            <i class="fas fa-broadcast-tower text-yt-red text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="font-semibold text-sm">IBM Technology</div>
+                            <div class="text-xs text-yt-meta font-mono">@ibmtechnology · 上次拉取 2 小時前</div>
+                        </div>
+                    </div>
+                    <button class="text-yt-meta hover:text-yt-red text-sm"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- VIEW 3 — Video Feed -->
+<!-- ============================================================ -->
+<div class="section-label" id="v3">VIEW 3 / 影片清單（YT 卡片風）</div>
+
+<section class="bg-white py-20">
+    <div class="max-w-6xl mx-auto px-6">
+
+        <div class="flex items-end justify-between mb-10">
+            <div>
+                <div class="text-[11px] text-yt-meta font-mono uppercase tracking-widest mb-2">Today</div>
+                <h2 class="text-3xl font-extrabold tracking-tight">今天新進 3 支</h2>
+                <p class="text-yt-meta text-sm mt-2">2026-05-15 · 用 Claude Sonnet 4.6 整理</p>
+            </div>
+            <div class="flex gap-2">
+                <button class="px-4 py-2 border border-yt-line hover:border-yt-ink rounded-full text-sm font-semibold">
+                    <i class="fas fa-filter mr-1.5 text-xs"></i> 篩選
+                </button>
+                <button class="px-4 py-2 bg-yt-ink text-white hover:bg-black rounded-full text-sm font-semibold">
+                    <i class="fas fa-plus mr-1.5 text-xs"></i> 手動加 URL
+                </button>
+            </div>
+        </div>
+
+        <!-- Today row -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+
+            <a href="#v4" class="group">
+                <div class="aspect-video bg-yt-bg rounded-2xl overflow-hidden mb-3 relative">
+                    <img src="https://i.ytimg.com/vi/D37Ijn2o5U0/maxresdefault.jpg" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    <span class="absolute bottom-2 right-2 bg-black/80 text-white text-[11px] font-mono px-1.5 py-0.5 rounded">12:45</span>
+                </div>
+                <h3 class="font-bold text-base leading-snug mb-1 line-clamp-2 group-hover:text-yt-red">Why Agentic AI Fails: Infinite Loops, Planning Errors, and More</h3>
+                <p class="text-yt-meta text-sm">IBM Technology</p>
+                <p class="text-yt-meta text-xs mt-0.5 font-mono">6 分鐘前 · Claude Sonnet</p>
+            </a>
+
+            <a href="#v4" class="group">
+                <div class="aspect-video bg-yt-bg rounded-2xl overflow-hidden mb-3 relative">
+                    <img src="https://i.ytimg.com/vi/F4h9QN5ulwM/maxresdefault.jpg" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    <span class="absolute bottom-2 right-2 bg-black/80 text-white text-[11px] font-mono px-1.5 py-0.5 rounded">15:32</span>
+                </div>
+                <h3 class="font-bold text-base leading-snug mb-1 line-clamp-2 group-hover:text-yt-red">兩週狂賣 118 噸黃金，200 億美元緊急套現！土耳其央行藏著什麼陰謀？</h3>
+                <p class="text-yt-meta text-sm">向陽說</p>
+                <p class="text-yt-meta text-xs mt-0.5 font-mono">28 分鐘前 · Claude Sonnet</p>
+            </a>
+
+            <a href="#v4" class="group">
+                <div class="aspect-video bg-yt-bg rounded-2xl overflow-hidden mb-3 relative">
+                    <img src="https://i.ytimg.com/vi/cKbNj7r_Bp0/maxresdefault.jpg" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    <span class="absolute bottom-2 right-2 bg-black/80 text-white text-[11px] font-mono px-1.5 py-0.5 rounded">18:21</span>
+                </div>
+                <h3 class="font-bold text-base leading-snug mb-1 line-clamp-2 group-hover:text-yt-red">95 歲巴菲特不退位！手握 3700 億現金等美股崩盤</h3>
+                <p class="text-yt-meta text-sm">向陽說</p>
+                <p class="text-yt-meta text-xs mt-0.5 font-mono">2 小時前 · Claude Sonnet</p>
+            </a>
+
+        </div>
+
+        <!-- This week -->
+        <div class="flex items-end justify-between mb-6">
+            <div>
+                <div class="text-[11px] text-yt-meta font-mono uppercase tracking-widest mb-2">This week</div>
+                <h2 class="text-2xl font-extrabold tracking-tight">本週</h2>
+            </div>
+            <a class="text-sm text-yt-meta hover:text-yt-ink font-semibold">看全部 <i class="fas fa-arrow-right ml-1 text-xs"></i></a>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
+
+            <a href="#v4" class="group">
+                <div class="aspect-video bg-yt-bg rounded-xl overflow-hidden mb-2 relative">
+                    <img src="https://i.ytimg.com/vi/2UkDvjVIaMA/hqdefault.jpg" alt="" class="w-full h-full object-cover">
+                    <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">14:08</span>
+                </div>
+                <h4 class="font-semibold text-sm leading-tight mb-1 line-clamp-2 group-hover:text-yt-red">川普也慌了？美銀預警：美股暴跌還沒結束？</h4>
+                <p class="text-yt-meta text-xs">向陽說 · 昨天</p>
+            </a>
+
+            <a href="#v4" class="group">
+                <div class="aspect-video bg-yt-bg rounded-xl overflow-hidden mb-2 relative">
+                    <img src="https://i.ytimg.com/vi/GWBkgyziwvk/hqdefault.jpg" alt="" class="w-full h-full object-cover">
+                    <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">11:47</span>
+                </div>
+                <h4 class="font-semibold text-sm leading-tight mb-1 line-clamp-2 group-hover:text-yt-red">黃金大跌真相：1970 年「滯脹劇本」精準重演</h4>
+                <p class="text-yt-meta text-xs">向陽說 · 2 天前</p>
+            </a>
+
+            <a href="#v4" class="group">
+                <div class="aspect-video bg-yt-bg rounded-xl overflow-hidden mb-2 relative">
+                    <img src="https://i.ytimg.com/vi/aWtmxUEZsvk/hqdefault.jpg" alt="" class="w-full h-full object-cover">
+                    <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">10:22</span>
+                </div>
+                <h4 class="font-semibold text-sm leading-tight mb-1 line-clamp-2 group-hover:text-yt-red">川普鎖定哈爾克島，油價狂飆 60% 打爆全球股市</h4>
+                <p class="text-yt-meta text-xs">向陽說 · 2 天前</p>
+            </a>
+
+            <a href="#v4" class="group">
+                <div class="aspect-video bg-yt-bg rounded-xl overflow-hidden mb-2 relative">
+                    <img src="https://i.ytimg.com/vi/VR-utIgMq6U/hqdefault.jpg" alt="" class="w-full h-full object-cover">
+                    <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">16:54</span>
+                </div>
+                <h4 class="font-semibold text-sm leading-tight mb-1 line-clamp-2 group-hover:text-yt-red">46 億美元遭強制鎖死！美國私募信貸的「龐氏大逃殺」</h4>
+                <p class="text-yt-meta text-xs">向陽說 · 3 天前</p>
+            </a>
+
+        </div>
+
+    </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- VIEW 4 — Video Detail -->
+<!-- ============================================================ -->
+<div class="section-label" id="v4">VIEW 4 / 影片詳情</div>
+
+<section class="bg-yt-bg py-20">
+    <div class="max-w-6xl mx-auto px-6">
+
+        <!-- breadcrumb -->
+        <div class="flex items-center gap-2 text-sm text-yt-meta mb-6 font-medium">
+            <a href="#v3" class="hover:text-yt-ink">影片清單</a>
+            <i class="fas fa-chevron-right text-xs"></i>
+            <span class="text-yt-ink">Why Agentic AI Fails</span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
+
+            <!-- Main column -->
+            <div>
+                <!-- YT player embed -->
+                <div class="aspect-video bg-black rounded-2xl overflow-hidden mb-6">
+                    <iframe class="w-full h-full" src="https://www.youtube.com/embed/D37Ijn2o5U0" frameborder="0" allowfullscreen></iframe>
+                </div>
+
+                <h1 class="text-2xl md:text-3xl font-extrabold mb-3 leading-tight">
+                    Why Agentic AI Fails: Infinite Loops, Planning Errors, and More
+                </h1>
+
+                <div class="flex items-center justify-between mb-6 pb-6 border-b border-yt-line">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-yt-red/10 flex items-center justify-center">
+                            <i class="fas fa-broadcast-tower text-yt-red text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-sm">IBM Technology</div>
+                            <div class="text-xs text-yt-meta">12:45 · 2026-05-15 整理</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="px-3 py-1.5 border border-yt-line hover:border-yt-ink rounded-full text-xs font-semibold">
+                            <i class="fas fa-file-excel mr-1"></i> Excel
+                        </button>
+                        <button class="px-3 py-1.5 border border-yt-line hover:border-yt-ink rounded-full text-xs font-semibold">
+                            <i class="fas fa-file-arrow-down mr-1"></i> Markdown
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TL;DR -->
+                <div class="mb-8 p-5 bg-white rounded-2xl border-l-4 border-yt-red">
+                    <div class="text-[10px] text-yt-red font-bold font-mono uppercase tracking-widest mb-2">TL;DR</div>
+                    <p class="text-base leading-relaxed">
+                        當今 Agentic AI 系統失敗，多半不是模型幻覺、也不是 prompt 寫不好，而是<strong>系統設計缺陷</strong>。三大常見失敗模式：無限迴圈、幻覺規劃、不安全的工具使用。根本原因可歸納為：給了 agent 太多自主權、太少限制、又沒有適當監控。
+                    </p>
+                </div>
+
+                <!-- Chapters -->
+                <details open class="mb-3 bg-white rounded-2xl border border-yt-line overflow-hidden">
+                    <summary class="flex items-center justify-between p-5 cursor-pointer hover:bg-yt-bg">
+                        <div class="flex items-center gap-4">
+                            <span class="font-mono text-xs text-yt-meta">[00:00–01:30]</span>
+                            <h3 class="font-bold">開場：Agentic AI 失敗的真正原因</h3>
+                        </div>
+                        <i class="fas fa-chevron-down chev text-yt-meta text-xs"></i>
+                    </summary>
+                    <div class="px-5 pb-5">
+                        <ul class="space-y-2 text-sm leading-relaxed pl-1">
+                            <li class="flex gap-3">
+                                <i class="fas fa-circle text-yt-red text-[6px] mt-2 shrink-0"></i>
+                                <span>過去 LLM 是機率模型，輸出不穩定；近年架構改進已能穩定產出</span>
+                            </li>
+                            <li class="flex gap-3">
+                                <i class="fas fa-circle text-yt-red text-[6px] mt-2 shrink-0"></i>
+                                <span>所以今天 agent 失敗，元兇通常<strong>不是模型幻覺或 prompt 品質</strong>，而是 system design 缺陷</span>
+                            </li>
+                            <li class="flex gap-3">
+                                <i class="fas fa-circle text-yt-red text-[6px] mt-2 shrink-0"></i>
+                                <span>真正定義：能 <span class="font-mono">plan → act → observe → adapt</span>（循環式運作）</span>
+                            </li>
+                        </ul>
+
+                        <div class="mt-4 p-4 bg-yt-bg rounded-xl border-l-2 border-yt-line">
+                            <a href="https://youtu.be/D37Ijn2o5U0?t=25" target="_blank" class="text-xs font-mono text-yt-red hover:underline">[00:25] <i class="fas fa-external-link-alt text-[9px]"></i></a>
+                            <p class="text-sm italic mt-1 text-yt-meta">"today when an agentic AI system fails, it's less likely because of model failure or prompt quality. It's more likely that there are flaws in the system design."</p>
+                            <p class="text-sm mt-2">「今天 agentic AI 系統失敗，比較不可能是模型或 prompt 的問題，更可能是系統設計有缺陷。」</p>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="mb-3 bg-white rounded-2xl border border-yt-line overflow-hidden">
+                    <summary class="flex items-center justify-between p-5 cursor-pointer hover:bg-yt-bg">
+                        <div class="flex items-center gap-4">
+                            <span class="font-mono text-xs text-yt-meta">[01:30–06:05]</span>
+                            <h3 class="font-bold">失敗模式 1：無限迴圈 Infinite Loop</h3>
+                        </div>
+                        <i class="fas fa-chevron-down chev text-yt-meta text-xs"></i>
+                    </summary>
+                    <div class="px-5 pb-5 text-sm text-yt-meta">展開看完整內容…</div>
+                </details>
+
+                <details class="mb-3 bg-white rounded-2xl border border-yt-line overflow-hidden">
+                    <summary class="flex items-center justify-between p-5 cursor-pointer hover:bg-yt-bg">
+                        <div class="flex items-center gap-4">
+                            <span class="font-mono text-xs text-yt-meta">[06:05–09:50]</span>
+                            <h3 class="font-bold">失敗模式 2：幻覺規劃 Hallucinated Planning</h3>
+                        </div>
+                        <i class="fas fa-chevron-down chev text-yt-meta text-xs"></i>
+                    </summary>
+                    <div class="px-5 pb-5 text-sm text-yt-meta">展開看完整內容…</div>
+                </details>
+
+                <details class="mb-3 bg-white rounded-2xl border border-yt-line overflow-hidden">
+                    <summary class="flex items-center justify-between p-5 cursor-pointer hover:bg-yt-bg">
+                        <div class="flex items-center gap-4">
+                            <span class="font-mono text-xs text-yt-meta">[09:50–12:05]</span>
+                            <h3 class="font-bold">失敗模式 3：不安全的工具使用 Unsafe Tool Use</h3>
+                        </div>
+                        <i class="fas fa-chevron-down chev text-yt-meta text-xs"></i>
+                    </summary>
+                    <div class="px-5 pb-5 text-sm text-yt-meta">展開看完整內容…</div>
+                </details>
+
+            </div>
+
+            <!-- Sidebar — chapter jump -->
+            <aside class="lg:sticky lg:top-20 self-start">
+
+                <div class="bg-white rounded-2xl border border-yt-line p-5 mb-4">
+                    <div class="text-[10px] text-yt-meta font-bold font-mono uppercase tracking-widest mb-3">章節跳轉</div>
+                    <div class="space-y-1.5">
+                        <a href="https://youtu.be/D37Ijn2o5U0?t=0" class="flex gap-3 p-2 rounded-lg hover:bg-yt-bg text-sm">
+                            <span class="font-mono text-yt-meta text-xs shrink-0 w-12">00:00</span>
+                            <span class="leading-tight">開場</span>
+                        </a>
+                        <a href="https://youtu.be/D37Ijn2o5U0?t=111" class="flex gap-3 p-2 rounded-lg hover:bg-yt-bg text-sm">
+                            <span class="font-mono text-yt-meta text-xs shrink-0 w-12">01:51</span>
+                            <span class="leading-tight">Infinite Loop</span>
+                        </a>
+                        <a href="https://youtu.be/D37Ijn2o5U0?t=370" class="flex gap-3 p-2 rounded-lg hover:bg-yt-bg text-sm">
+                            <span class="font-mono text-yt-meta text-xs shrink-0 w-12">06:10</span>
+                            <span class="leading-tight">Hallucinated Planning</span>
+                        </a>
+                        <a href="https://youtu.be/D37Ijn2o5U0?t=595" class="flex gap-3 p-2 rounded-lg hover:bg-yt-bg text-sm">
+                            <span class="font-mono text-yt-meta text-xs shrink-0 w-12">09:55</span>
+                            <span class="leading-tight">Unsafe Tool Use</span>
+                        </a>
+                        <a href="https://youtu.be/D37Ijn2o5U0?t=731" class="flex gap-3 p-2 rounded-lg hover:bg-yt-bg text-sm">
+                            <span class="font-mono text-yt-meta text-xs shrink-0 w-12">12:11</span>
+                            <span class="leading-tight">結論</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-yt-line p-5">
+                    <div class="text-[10px] text-yt-meta font-bold font-mono uppercase tracking-widest mb-3">處理資訊</div>
+                    <div class="space-y-2.5 text-xs">
+                        <div class="flex justify-between">
+                            <span class="text-yt-meta">轉錄</span>
+                            <span class="font-mono">Groq Whisper</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-yt-meta">整理</span>
+                            <span class="font-mono">Claude Sonnet 4.6</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-yt-meta">花費</span>
+                            <span class="font-mono">$0.30</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-yt-meta">處理時間</span>
+                            <span class="font-mono">2 分 14 秒</span>
+                        </div>
+                        <div class="pt-2.5 mt-2.5 border-t border-yt-line flex justify-between">
+                            <span class="text-yt-meta">信心</span>
+                            <span class="text-green-700 font-semibold">[確定]</span>
+                        </div>
+                    </div>
+                </div>
+
+            </aside>
+
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- Footer -->
+<!-- ============================================================ -->
+<footer class="bg-yt-ink text-white py-12">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-yt-red rounded-md flex items-center justify-center">
+                <i class="fas fa-play text-white text-xs ml-0.5"></i>
+            </div>
+            <div class="text-sm">
+                <div class="font-bold">YT Digest</div>
+                <div class="text-[10px] font-mono text-yt-meta uppercase tracking-widest">by Sunny · v3 mockup</div>
+            </div>
+        </div>
+        <p class="text-xs text-yt-meta font-mono">這是 mockup，沒有真實後端，按鈕點不會做事</p>
+    </div>
+</footer>
+
+</body>
+</html>
