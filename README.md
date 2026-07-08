@@ -1,3 +1,7 @@
+**繁體中文** | [English](./README.en.md)
+
+> ⚠️ **Legacy 封存**：本專案已停止維護，已由新一代私有專案 yt-digest（Next.js + Firebase + 本機 daemon 架構）取代。以下內容保留供參考。
+
 # YouTube AI Digest v2
 
 > 📅 專案開始：2026-03
